@@ -20,11 +20,13 @@ class AttributeSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class LabelWriteSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
     attributes = AttributeSerializer(many=True)
 
     class Meta:
         model = Label
         fields = (
+            "id",
             "name",
             "attributes",
             "label_type",
@@ -53,6 +55,22 @@ class LabelWriteSerializer(serializers.ModelSerializer):
             attribute_serializer.save()
             label.attributes.add(attribute_serializer.instance)
 
+    @transaction.atomic
+    def update(self, label_instance, validated_data):
+        Attribute.objects.filter(label=label_instance.id).delete()
+        for attribute_data in validated_data:
+            attribute_data.pop("label", None)
+            attribute_obj = {
+                "label": label_instance.id,
+                **attribute_data
+            }
+            attribute_serializer = AttributeSerializer(
+                data=attribute_obj
+            )
+            attribute_serializer.is_valid(raise_exception=True)
+            attribute_serializer.save()
+            label_instance.attributes.add(attribute_serializer.instance)
+
 class LabelReadSerializer(serializers.ModelSerializer):
     attributes = AttributeSerializer(many=True, read_only=True)
 
@@ -67,7 +85,7 @@ class LabelReadSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = fields
+        # read_only_fields = fields
 
 class StorageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -96,7 +114,7 @@ class ProjectReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = "__all__"
-        read_only_fields = fields
+        # read_only_fields = fields
         extra_kwargs = { 'organization': { 'allow_null': True } }
 
 
@@ -138,6 +156,39 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
             label_instance.is_valid(raise_exception=True)
             label_instance.save()
 
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        labels_data = validated_data.pop('labels', [])
+
+        storages = _configure_related_storages({
+            'source_storage': validated_data.pop('source_storage', None),
+            'target_storage': validated_data.pop('target_storage', None),
+        })
+
+        project = super().update(instance, validated_data)
+        labels = self.update_labels(project, labels_data)
+        return project
+    
+    @transaction.atomic
+    def update_labels(self, project, labels_data):
+
+        for label_data in labels_data:
+            if label_data.get('id'):
+                label_instance = Label.objects.get(id=label_data['id'])
+                label_instance.name = label_data['name']
+                label_instance.save()
+                label = Label.objects.get(id=label_data['id'])
+                LabelWriteSerializer().update(label, label_data['attributes'])
+            else:
+                label_object = {
+                    "project": project.id,
+                    **label_data
+                }
+                label_instance = LabelWriteSerializer(data=label_object)
+                label_instance.is_valid(raise_exception=True)
+                label_instance.save()
+    
 class PostTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task

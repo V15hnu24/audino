@@ -28,7 +28,7 @@ from users.manager import TokenAuthentication
 from iam.permissions import *
 
 class ProjectViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, 
-    mixins.RetrieveModelMixin, mixins.CreateModelMixin, mixins.DestroyModelMixin
+    mixins.RetrieveModelMixin, mixins.CreateModelMixin, mixins.DestroyModelMixin, mixins.UpdateModelMixin
 ):
     queryset = ProjectModel.objects.select_related(
         'assignee', 'owner', 'target_storage', 'source_storage',
@@ -68,12 +68,15 @@ class ProjectViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
         # After saving the serializer (creating a new object), the line retrieves the saved instance from the database
         serializer.instance = self.get_queryset().get(pk=serializer.instance.pk)
 
+
 @api_view(["GET", "POST"])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def get_add_project(request, format=None):
     if request.method == "POST":
+        print("request", request)
         organization = request.iam_context['organization']
+        print("organization at post", organization)
 
         data = JSONParser().parse(request)
 
@@ -142,6 +145,7 @@ def get_add_project(request, format=None):
     # page_size = request.GET.get("page_size", 10)
 
     organization = request.iam_context['organization']
+    print("organization at get", organization)
 
     if organization is None:
         projects = ProjectModel.objects.filter(

@@ -9,8 +9,8 @@ router.register(r'projects', ProjectViewSet)
 
 # urlpatterns = router.urls
 urlpatterns = [
+    # path("projects/", get_add_project, name="get_add_project"),
     path('', include(router.urls)),
-    # path("projects", get_add_project, name="get_add_project"),
     # path("projects/<id>", update_project, name="update_project"),
     path("labels", get_labels, name="get_labels"),
     path("labels/<id>", get_label_by_id, name="get_label_by_id"),
